@@ -6,6 +6,7 @@ import pprint
 from aiohttp import ClientSession
 
 
+# Async spinner print
 spinner = itertools.cycle(['-', '/', '|', '\\'])
 async def spinner_wait():
     while True:
@@ -14,6 +15,15 @@ async def spinner_wait():
         sys.stdout.write('\b')
         await asyncio.sleep(0.1)
 
+class Spinner():
+    def __init__(self):
+        pass
+    def __enter__(self):
+        # starting a spinner
+        self.spinner = asyncio.ensure_future(spinner_wait())
+    def __exit__(self, type, value, traceback):
+        # got what we needed so we cancel the spinner
+        self.spinner.cancel()
 
 base_url = 'https://aoe2.net/api'
 
@@ -27,7 +37,7 @@ async def get_user(user):
             return user_data
 
 
-async def get_last_match():
+async def get_last_match(last_match):
     endpoint = '/strings'
     parameters = {'game':'aoe2de', 'search':user}
     async with ClientSession() as session:
@@ -39,12 +49,10 @@ async def get_last_match():
 async def main():
     user = input("User: ")
     tasks = []
-    tasks.append(asyncio.ensure_future(get_user(user)))
     # We display while we wait
-    spinner = asyncio.ensure_future(spinner_wait())
-    await asyncio.gather(*tasks)
-    # Got what we wanted so stop waiting
-    spinner.cancel()
+    with Spinner():
+        user_data = await asyncio.gather(asyncio.ensure_future(get_user(user)))
+        pprint.pprint(user_data[0])
 
 
 if __name__ == '__main__':
