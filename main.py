@@ -3,8 +3,9 @@ import itertools
 import sys
 import json
 import pprint
-from aiohttp import ClientSession
 
+from aiohttp import ClientSession
+from types import SimpleNamespace
 
 # Async spinner print
 spinner = itertools.cycle(['-', '/', '|', '\\'])
@@ -25,34 +26,67 @@ class Spinner():
         # got what we needed so we cancel the spinner
         self.spinner.cancel()
 
-base_url = 'https://aoe2.net/api'
+
+base_url = 'https://aoe2.net'
 
 async def get_user(user):
-    endpoint = '/leaderboard'
-    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'1', 'search':user}
+    endpoint = '/api/leaderboard'
+    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'search':user}
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
-            user_data = json.loads(response)
-            return user_data
+            search_data = json.loads(response)
+            for user_data in search_data['leaderboard']:
+                if 'name' in user_data and user_data['name'].upper() == user.upper():
+                    return user_data
+            count = search_data['count']
+            print(f'NO USER {count}')
+            return []
 
 
-async def get_last_match(last_match):
-    endpoint = '/strings'
-    parameters = {'game':'aoe2de', 'search':user}
+async def get_last_match_for_player(steam_id):
+    endpoint = '/api/player/lastmatch'
+    parameters = {'game':'aoe2de', 'steam_id':steam_id}
     async with ClientSession() as session:
-        async with session.get(base_url+endpoint) as response:
+        async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
-            print(response)
+            match_data = json.loads(response)
+            match_id = match_data['last_match']['match_id']
+            return match_id
+
+
+async def get_match_data(match_id):
+    endpoint = '/api/match'
+    parameters = {'game':'aoe2de', 'match_id':match_id}
+    async with ClientSession() as session:
+        async with session.get(base_url+endpoint, params=parameters) as response:
+            response = await response.read()
+            match_data = json.loads(response)
+            return match_data
 
 
 async def main():
     user = input("User: ")
     tasks = []
-    # We display while we wait
+
     with Spinner():
-        user_data = await asyncio.gather(asyncio.ensure_future(get_user(user)))
-        pprint.pprint(user_data[0])
+        user_data = (await asyncio.gather(asyncio.ensure_future(get_user(user))))[0]
+        user_steam_id = user_data['steam_id']
+        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
+
+    with Spinner():
+        while True:
+            await asyncio.sleep(3)
+            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
+            if latest_match_id != match_id:
+                print(f'New match! <{latest_match_id} {match_id}>')
+                break
+            print('.')
+            
+        match_data = await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id)))
+        pprint.pprint(match_data)
+
+        
 
 
 if __name__ == '__main__':
