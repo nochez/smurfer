@@ -44,6 +44,16 @@ async def get_user(user):
             return []
 
 
+async def get_user_by_id(steam_id):
+    endpoint = '/api/leaderboard'
+    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'steam_id':steam_id}
+    async with ClientSession() as session:
+        async with session.get(base_url+endpoint, params=parameters) as response:
+            response = await response.read()
+            search_data = json.loads(response)
+            return search_data
+
+
 async def get_last_match_for_player(steam_id):
     endpoint = '/api/player/lastmatch'
     parameters = {'game':'aoe2de', 'steam_id':steam_id}
@@ -76,17 +86,35 @@ async def main():
 
     with Spinner():
         while True:
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
             if latest_match_id != match_id:
                 print(f'New match! <{latest_match_id} {match_id}>')
                 break
             print('.')
             
-        match_data = await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id)))
-        pprint.pprint(match_data)
+        match_data = (await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id))))[0]
 
-        
+        # identify teams
+        teams = [[],[]]
+        for player in match_data['players']:
+            match_player_team = player['team']
+            match_player_steam_id = player['steam_id']
+            teams[match_player_team-1].append(match_player_steam_id)
+            if match_player_steam_id == user_steam_id:
+                user_last_match_team = match_player_team-1
+                user_last_match_oposition_team = 1 if user_last_match_team == 0 else 0
+
+        # get oposition team info
+        tasks = []
+        for player_id in teams[user_last_match_oposition_team]:
+            tasks.append(asyncio.create_task(get_user_by_id(player_id)))
+        results = await asyncio.gather(*tasks)
+
+        # print user info
+        for task in results:
+            data=task['leaderboard'][0]
+            print(data['name'], data['previous_rating'], data['wins'], data['losses'])
 
 
 if __name__ == '__main__':
