@@ -57,7 +57,7 @@ async def get_user(user):
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
-            pat = pyjq.compile(f'.leaderboard[] | select(.name=="{user}") | {{name: .name, steam_id: .steam_id}}')
+            pat = pyjq.compile(f'.leaderboard | map({{name, rating, steam_id}})[] | select(.name=="{user}")')
             user_data = pat.all(json.loads(response))
             return user_data
 
