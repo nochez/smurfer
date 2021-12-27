@@ -41,10 +41,10 @@ class Spinner():
 
 def print_app_title(version=0):
 
-    header = r""" ___  __  __  __  __  ____  ____  ____  ____  ____ 
-/ __)(  \/  )(  )(  )(  _ \( ___)( ___)( ___)(  _ \
-\__ \ )    (  )(__)(  )   / )__)  )__)  )__)  )   /
-(___/(_/\/\_)(______)(_)\_)(__)  (__)  (____)(_)\_)"""
+    header = r""" ___  __  __  __  __  ____  ____  ____  ____ 
+/ __)(  \/  )(  )(  )(  _ \( ___)( ___)(  _ \
+\__ \ )    (  )(__)(  )   / )__)  )__)  )   /
+(___/(_/\/\_)(______)(_)\_)(__)  (____)(_)\_)"""
     print(header)
     print(f'version {version}')
     print('\n')
@@ -127,7 +127,7 @@ def color_it(data, smurfcode, ref_elo):
             smurfname_color+data[5]+N]
 
 async def main():
-    print_app_title('0.2')
+    print_app_title('0.3')
     options = ['Search Ponyo', 'Select by username']
     input_text = ['Ponyo', 'Enter username: ']
     terminal_menu = TerminalMenu(options)
