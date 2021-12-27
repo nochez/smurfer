@@ -109,16 +109,6 @@ async def main():
             
         match_data = (await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id))))[0]
 
-        # identify teams
-        teams = [[],[]]
-        for player in match_data['players']:
-            match_player_team = player['team']
-            match_player_steam_id = player['steam_id']
-            teams[match_player_team-1].append(match_player_steam_id)
-            if match_player_steam_id == user_steam_id:
-                user_last_match_team = match_player_team-1
-                user_last_match_oposition_team = 1 if user_last_match_team == 0 else 0
-
         # Get opposition team
         # jq explained:
         # from players we sort by team value,
@@ -126,13 +116,11 @@ async def main():
         # Finally select the opposite (this is the not part) team entry if any of the members matches the steam id of the user
         query = f'.players | group_by(.team)[] | map({{name, steam_id, team}}) | select( any(.steam_id=="{user_steam_id}") | not )'
         pat = pyjq.compile(query)
-        opposition_team = pat.all(match_data)
-        pprint.pprint(opposition_team)
+        opposition_team = (pat.all(match_data))[0]
 
-        # get opposition team info
         tasks = []
-        for player_id in teams[user_last_match_oposition_team]:
-            tasks.append(asyncio.create_task(get_user_by_id(player_id)))
+        for player in opposition_team:
+            tasks.append(asyncio.create_task(get_user_by_id(player['steam_id'])))
         results = await asyncio.gather(*tasks)
 
         # print user info
