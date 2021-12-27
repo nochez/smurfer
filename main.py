@@ -103,7 +103,7 @@ async def main():
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id == match_id:
+            if latest_match_id != match_id:
                 print(f'New match found! <{latest_match_id} {match_id}>')
                 break
             
