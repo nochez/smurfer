@@ -1,4 +1,4 @@
-Smurfer monitors team random map games for aoe2 DE of a user and provides information on the opponent team.
+Smurfer monitors team random map games for aoe2 DE of a user and provides information on the opponent team, and warns you of potential SMURF players.
 This app makes use of the data API provided by aoe2.net
 
 To use, clone the repo and build and run the container with the app.
