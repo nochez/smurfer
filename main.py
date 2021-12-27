@@ -57,14 +57,14 @@ async def get_user(user):
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
-            pat = pyjq.compile(f'.leaderboard | map({{name, rating, steam_id}})[] | select(.name=="{user}")')
+            pat = pyjq.compile(f'.leaderboard | map({{name, rating, profile_id}})[] | select(.name=="{user}")')
             user_data = pat.all(json.loads(response))
             return user_data
 
 
-async def get_user_by_id(steam_id):
+async def get_user_by_id(profile_id):
     endpoint = '/api/leaderboard'
-    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'steam_id':steam_id}
+    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'profile_id':profile_id}
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
@@ -72,9 +72,9 @@ async def get_user_by_id(steam_id):
             return search_data
 
 
-async def get_last_match_for_player(steam_id):
+async def get_last_match_for_player(profile_id):
     endpoint = '/api/player/lastmatch'
-    parameters = {'game':'aoe2de', 'steam_id':steam_id}
+    parameters = {'game':'aoe2de', 'profile_id':profile_id}
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
@@ -148,23 +148,23 @@ async def main():
             return
         if len(user_data) > 1:
             print(f'Multiple {user} found select one')
-            steam_ids = [sub['steam_id'] for sub in user_data]
+            profile_ids = [str(sub['profile_id']) for sub in user_data]
             elos = [sub['rating'] for sub in user_data]
-            user_selection = TerminalMenu(steam_ids)
+            user_selection = TerminalMenu(profile_ids)
             user_index = user_selection.show()
-            user_steam_id = steam_ids[user_index]
+            user_profile_id = profile_ids[user_index]
             user_elo = elos[user_index]
         else:
-            user_steam_id = user_data[0]['steam_id']
+            user_profile_id = user_data[0]['profile_id']
             user_elo = user_data[0]['rating']
-        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
+        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
 
     with Spinner():
-        print(f'Waiting new match for {user}#{user_steam_id}: ELO#{user_elo}')
+        print(f'Waiting new match for {user}#{user_profile_id}: ELO#{user_elo}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
-            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id != match_id:
+            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
+            if latest_match_id == match_id:
                 print(f'New match found! <{latest_match_id} {match_id}>')
                 break
             
@@ -174,14 +174,16 @@ async def main():
         # jq explained:
         # from players we sort by team value,
         # then filter only name, id, and team.
-        # Finally select the opposite (this is the not part) team entry if any of the members matches the steam id of the user
-        query = f'.players | group_by(.team)[] | map({{name, steam_id, team}}) | select( any(.steam_id=="{user_steam_id}") | not )'
+        # Finally select the opposite (this is the not part) team entry if any of the members matches the profile id of the user
+        query = f'.players | group_by(.team)[] | map({{name, profile_id, team}}) | select( any(.profile_id=={user_profile_id}) | not )'
         pat = pyjq.compile(query)
         opposition_team = (pat.all(match_data))[0]
+        #pprint.pprint(match_data)
+        #pprint.pprint(opposition_team)
 
         tasks = []
         for player in opposition_team:
-            tasks.append(asyncio.create_task(get_user_by_id(player['steam_id'])))
+            tasks.append(asyncio.create_task(get_user_by_id(player['profile_id'])))
         results = await asyncio.gather(*tasks)
 
         opposition_team_table = PrettyTable()
