@@ -5,9 +5,12 @@ import json
 import pprint
 import pyjq
 
+import prettytable
+from prettytable import PrettyTable
+
 from aiohttp import ClientSession
 from types import SimpleNamespace
-
+from simple_term_menu import TerminalMenu
 
 WAIT_BETWEEN_MATCH_LOOKUPS = 1
 
@@ -35,6 +38,16 @@ class Spinner():
         # got what we needed so we cancel the spinner
         self.spinner.cancel()
 
+
+def print_app_title(version=0):
+
+    header = r""" ___  __  __  __  __  ____  ____  ____  ____  ____ 
+/ __)(  \/  )(  )(  )(  _ \( ___)( ___)( ___)(  _ \
+\__ \ )    (  )(__)(  )   / )__)  )__)  )__)  )   /
+(___/(_/\/\_)(______)(_)\_)(__)  (__)  (____)(_)\_)"""
+    print(header)
+    print(f'version {version}')
+    print('\n')
 
 base_url = 'https://aoe2.net'
 
@@ -80,30 +93,70 @@ async def get_match_data(match_id):
             return match_data
 
 
+def is_smurf(wins, losses, games):
+    few_games = 1 if games < 15 else 0
+    mostly_wins = 2 if (wins / (wins + losses)) > 0.55 else 0
+    return few_games + mostly_wins
+
+
+def get_smurfname(smurfcode):
+    names = ['normal', 'new account', 'Pitufina', 'PAPA PITUFO']
+    return names[smurfcode]
+
+def color_it(data, smurfcode): 
+    R = "\033[0;31;40m" #RED
+    G = "\033[0;32;40m" # GREEN
+    Y = "\033[0;33;40m" # Yellow
+    B = "\033[0;34;40m" # Blue
+    N = "\033[0m" # Reset
+
+    games_color = [G, Y][smurfcode & 1]
+    ratio_color = [G, G, Y, Y][smurfcode & 2]
+    smurfname_color = [G, Y, Y, R][smurfcode]
+    
+    return [smurfname_color+data[0]+N,
+            data[1],
+            ratio_color+str(data[2])+N,
+            ratio_color+str(data[3])+N,
+            games_color+str(data[4])+N,
+            smurfname_color+data[5]+N]
+
 async def main():
-    user = input("User: ")
+    print_app_title('0.2')
+    options = ['Search Ponyo', 'Select by username']
+    input_text = ['Ponyo', 'Enter username: ']
+    terminal_menu = TerminalMenu(options)
+    menu_entry_index = terminal_menu.show()
+    
+    if menu_entry_index > 0:
+        user = input(input_text[menu_entry_index])
+    else:
+        user = input_text[menu_entry_index]
+
     tasks = []
 
     with Spinner():
-        print('Searching for user')
+        print(f'Searching for {user}')
         user_data = (await asyncio.gather(asyncio.ensure_future(get_user(user))))[0]
         if not user_data:
             print('User not found')
             return
         if len(user_data) > 1:
-            print("Multiple users found")
-            pprint.pprint(user_data)
-            return
-        pprint.pprint(user_data)
-        user_steam_id = user_data[0]['steam_id']
+            print(f'Multiple {user} found select one')
+            steam_ids = [sub['steam_id'] for sub in user_data]
+            user_selection = TerminalMenu(steam_ids)
+            user_index = user_selection.show()
+            user_steam_id = steam_ids[user_index]
+        else:
+            user_steam_id = user_data[0]['steam_id']
         match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
 
     with Spinner():
-        print('Waiting for new match')
+        print(f'Waiting new match for {user}#{user_steam_id}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id != match_id:
+            if latest_match_id == match_id:
                 print(f'New match found! <{latest_match_id} {match_id}>')
                 break
             
@@ -123,10 +176,15 @@ async def main():
             tasks.append(asyncio.create_task(get_user_by_id(player['steam_id'])))
         results = await asyncio.gather(*tasks)
 
+        opposition_team_table = PrettyTable()
+        opposition_team_table.field_names = ['Username', 'ELO', 'Wins', 'Loses', 'Games', 'Smurf']
         # print user info
         for task in results:
             data=task['leaderboard'][0]
-            print(data['name'], data['previous_rating'], data['wins'], data['losses'])
+            smurfcode = is_smurf(data['wins'], data['losses'], data['games'])
+            colored_data = color_it([data['name'], data['previous_rating'], data['wins'], data['losses'], data['games'], get_smurfname(smurfcode)], smurfcode)
+            opposition_team_table.add_row(colored_data)
+        print(opposition_team_table)
 
 
 if __name__ == '__main__':

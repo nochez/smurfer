@@ -1,3 +1,5 @@
 asyncio
 aiohttp
 pyjq
+prettytable
+simple-term-menu
