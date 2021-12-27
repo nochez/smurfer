@@ -103,7 +103,7 @@ async def main():
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id != match_id:
+            if latest_match_id == match_id:
                 print(f'New match found! <{latest_match_id} {match_id}>')
                 break
             
@@ -119,7 +119,17 @@ async def main():
                 user_last_match_team = match_player_team-1
                 user_last_match_oposition_team = 1 if user_last_match_team == 0 else 0
 
-        # get oposition team info
+        # Get opposition team
+        # jq explained:
+        # from players we sort by team value,
+        # then filter only name, id, and team.
+        # Finally select the opposite (this is the not part) team entry if any of the members matches the steam id of the user
+        query = f'.players | group_by(.team)[] | map({{name, steam_id, team}}) | select( any(.steam_id=="{user_steam_id}") | not )'
+        pat = pyjq.compile(query)
+        opposition_team = pat.all(match_data)
+        pprint.pprint(opposition_team)
+
+        # get opposition team info
         tasks = []
         for player_id in teams[user_last_match_oposition_team]:
             tasks.append(asyncio.create_task(get_user_by_id(player_id)))
