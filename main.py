@@ -103,19 +103,24 @@ def get_smurfname(smurfcode):
     names = ['normal', 'new account', 'Pitufina', 'PAPA PITUFO']
     return names[smurfcode]
 
-def color_it(data, smurfcode): 
+def color_it(data, smurfcode, ref_elo):
     R = "\033[0;31;40m" #RED
     G = "\033[0;32;40m" # GREEN
     Y = "\033[0;33;40m" # Yellow
     B = "\033[0;34;40m" # Blue
     N = "\033[0m" # Reset
 
-    games_color = [G, Y][smurfcode & 1]
-    ratio_color = [G, G, Y, Y][smurfcode & 2]
-    smurfname_color = [G, Y, Y, R][smurfcode]
+    games_color = [N, Y][smurfcode & 1]
+    ratio_color = [N, N, Y, Y][smurfcode & 2]
+    smurfname_color = [N, Y, Y, R][smurfcode]
     
+    elo_range_dif = [abs((data[1] - ref_elo) - x) for x in [-50, 0, 40, 100]]
+    min_index = elo_range_dif.index(min(elo_range_dif))
+    elo_color = [G, N, Y, R][min_index]
+
+
     return [smurfname_color+data[0]+N,
-            data[1],
+            elo_color+str(data[1])+N,
             ratio_color+str(data[2])+N,
             ratio_color+str(data[3])+N,
             games_color+str(data[4])+N,
@@ -144,19 +149,22 @@ async def main():
         if len(user_data) > 1:
             print(f'Multiple {user} found select one')
             steam_ids = [sub['steam_id'] for sub in user_data]
+            elos = [sub['rating'] for sub in user_data]
             user_selection = TerminalMenu(steam_ids)
             user_index = user_selection.show()
             user_steam_id = steam_ids[user_index]
+            user_elo = elos[user_index]
         else:
             user_steam_id = user_data[0]['steam_id']
+            user_elo = user_data[0]['rating']
         match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
 
     with Spinner():
-        print(f'Waiting new match for {user}#{user_steam_id}')
+        print(f'Waiting new match for {user}#{user_steam_id}: ELO#{user_elo}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id == match_id:
+            if latest_match_id != match_id:
                 print(f'New match found! <{latest_match_id} {match_id}>')
                 break
             
@@ -182,7 +190,7 @@ async def main():
         for task in results:
             data=task['leaderboard'][0]
             smurfcode = is_smurf(data['wins'], data['losses'], data['games'])
-            colored_data = color_it([data['name'], data['previous_rating'], data['wins'], data['losses'], data['games'], get_smurfname(smurfcode)], smurfcode)
+            colored_data = color_it([data['name'], data['previous_rating'], data['wins'], data['losses'], data['games'], get_smurfname(smurfcode)], smurfcode, user_elo)
             opposition_team_table.add_row(colored_data)
         print(opposition_team_table)
 
