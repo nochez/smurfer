@@ -3,18 +3,27 @@ import itertools
 import sys
 import json
 import pprint
+import pyjq
 
 from aiohttp import ClientSession
 from types import SimpleNamespace
 
+
+WAIT_BETWEEN_MATCH_LOOKUPS = 1
+
+
 # Async spinner print
-spinner = itertools.cycle(['-', '/', '|', '\\'])
+spinner = itertools.cycle(['ᕕ(⌐■_■)ᕗ',
+                           'ᕙ(⌐■_■)ง',
+                           'ᕕ(■_■¬)╯',
+                           'ᕙ(■_■¬)~'])
 async def spinner_wait():
     while True:
-        sys.stdout.write(next(spinner))
+        next_spinner = next(spinner)
+        sys.stdout.write(next_spinner)
         sys.stdout.flush()
-        sys.stdout.write('\b')
-        await asyncio.sleep(0.1)
+        for x in next_spinner: sys.stdout.write('\b')
+        await asyncio.sleep(0.3)
 
 class Spinner():
     def __init__(self):
@@ -35,13 +44,9 @@ async def get_user(user):
     async with ClientSession() as session:
         async with session.get(base_url+endpoint, params=parameters) as response:
             response = await response.read()
-            search_data = json.loads(response)
-            for user_data in search_data['leaderboard']:
-                if 'name' in user_data and user_data['name'].upper() == user.upper():
-                    return user_data
-            count = search_data['count']
-            print(f'NO USER {count}')
-            return []
+            pat = pyjq.compile(f'.leaderboard[] | select(.name=="{user}") | {{name: .name, steam_id: .steam_id}}')
+            user_data = pat.all(json.loads(response))
+            return user_data
 
 
 async def get_user_by_id(steam_id):
@@ -80,18 +85,27 @@ async def main():
     tasks = []
 
     with Spinner():
+        print('Searching for user')
         user_data = (await asyncio.gather(asyncio.ensure_future(get_user(user))))[0]
-        user_steam_id = user_data['steam_id']
+        if not user_data:
+            print('User not found')
+            return
+        if len(user_data) > 1:
+            print("Multiple users found")
+            pprint.pprint(user_data)
+            return
+        pprint.pprint(user_data)
+        user_steam_id = user_data[0]['steam_id']
         match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
 
     with Spinner():
+        print('Waiting for new match')
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_steam_id))))[0]
-            if latest_match_id != match_id:
-                print(f'New match! <{latest_match_id} {match_id}>')
+            if latest_match_id == match_id:
+                print(f'New match found! <{latest_match_id} {match_id}>')
                 break
-            print('.')
             
         match_data = (await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id))))[0]
 
