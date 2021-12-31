@@ -159,13 +159,19 @@ async def main():
             user_elo = user_data[0]['rating']
         match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
 
+    options = ['Search for new match', 'Look latest match']
+    print("Select what match to compare")
+    match_query = TerminalMenu(['New match', 'Latest match']).show()
+
+
     with Spinner():
         print(f'Waiting new match for {user}#{user_profile_id}: ELO#{user_elo}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
-            if latest_match_id == match_id:
-                print(f'New match found! <{latest_match_id} {match_id}>')
+            match_found = (latest_match_id == match_id) if match_query else (latest_match_id != match_id) 
+            if match_found:
+                print(f'Match found! <{latest_match_id} {match_id}>')
                 break
             
         match_data = (await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id))))[0]
