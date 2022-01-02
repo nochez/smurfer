@@ -39,7 +39,7 @@ class Player(object):
         else:
             team_player_data = {'team_rating':0, 'team_wins':0, 'team_losses':0,'team_games':0}
         # parse single and team data into single data object
-        user_data = single_player_data | team_player_data
+        user_data = single_player_data | team_player_data | {'profile_id': profile_id}
         # player data into an instance
         self = Player()
         self.load(user_data)

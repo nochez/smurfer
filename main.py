@@ -157,8 +157,7 @@ async def main():
         else:
             user_profile_id = user_data[0]
         ref_player = await Player.create(user_profile_id)
-        user_elo = ref_player.team_rating
-        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
+        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
 
     options = ['Search for new match', 'Look latest match']
     print("Select what match to compare")
@@ -166,10 +165,10 @@ async def main():
 
 
     with Spinner():
-        print(f'Waiting new match for {user}#{user_profile_id}: ELO#{user_elo}')
+        print(f'Waiting new match for {user}#{ref_player.profile_id}: ELO#{ref_player.team_rating}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
-            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
+            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
             match_found = (latest_match_id == match_id) if match_query else (latest_match_id != match_id) 
             if match_found:
                 print(f'Match found! <{latest_match_id} {match_id}>')
@@ -182,7 +181,7 @@ async def main():
         # from players we sort by team value,
         # then filter only name, id, and team.
         # Finally select the opposite (this is the not part) team entry if any of the members matches the profile id of the user
-        query = f'.players | group_by(.team)[] | map({{name, profile_id, team}}) | select( any(.profile_id=={user_profile_id}) | not )'
+        query = f'.players | group_by(.team)[] | map({{name, profile_id, team}}) | select( any(.profile_id=={ref_player.profile_id}) | not )'
         pat = pyjq.compile(query)
         opposition_team = (pat.all(match_data))[0]
         #pprint.pprint(match_data)
@@ -198,7 +197,7 @@ async def main():
         # print user info
         for player in results:
             smurfcode = is_smurf(player.team_wins, player.team_losses, player.team_games)
-            colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, get_smurfname(smurfcode)], smurfcode, user_elo)
+            colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, get_smurfname(smurfcode)], smurfcode, ref_player.team_rating)
             opposition_team_table.add_row(colored_data)
         print(opposition_team_table)
 
