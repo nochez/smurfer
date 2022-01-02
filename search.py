@@ -20,10 +20,23 @@ async def profile_id(username):
     return profiles
 
 
+async def last_match_id(profile_id):
+    endpoint = '/api/player/lastmatch'
+    parameters = {'game': 'aoe2de', 'profile_id' : profile_id}
+    match_data = await call_aoe2net(endpoint, parameters)
+    return match_data['last_match']['match_id']
+
+
+async def match(match_id):
+    endpoint = '/api/match'
+    parameters = {'game': 'aoe2net', 'match_id': match_id}
+    match_data = await call_aoe2net(endpoint, parameters)
+    return match_data
+
 
 async def main():
-    await search('Ponyo')
-    await search('Nemo')
+    await profile_id('Ponyo')
+    await profile_id('Nemo')
 
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()

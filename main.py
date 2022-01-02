@@ -1,6 +1,4 @@
 import asyncio
-import itertools
-import sys
 import json
 import pprint
 import pyjq
@@ -13,34 +11,9 @@ from simple_term_menu import TerminalMenu
 
 import search
 from player import Player
-
+from spinner import Spinner
 
 WAIT_BETWEEN_MATCH_LOOKUPS = 1
-
-
-# Async spinner print
-spinner = itertools.cycle(['ᕕ(⌐■_■)ᕗ',
-                           'ᕙ(⌐■_■)ง',
-                           'ᕕ(■_■¬)╯',
-                           'ᕙ(■_■¬)~'])
-async def spinner_wait():
-    while True:
-        next_spinner = next(spinner)
-        sys.stdout.write(next_spinner)
-        sys.stdout.flush()
-        for x in next_spinner: sys.stdout.write('\b')
-        await asyncio.sleep(0.3)
-
-class Spinner():
-    def __init__(self):
-        pass
-    def __enter__(self):
-        # starting a spinner
-        self.spinner = asyncio.ensure_future(spinner_wait())
-    def __exit__(self, type, value, traceback):
-        # got what we needed so we cancel the spinner
-        self.spinner.cancel()
-
 
 def print_app_title(version=0):
 
@@ -51,50 +24,6 @@ def print_app_title(version=0):
     print(header)
     print(f'version {version}')
     print('\n')
-
-base_url = 'https://aoe2.net'
-
-async def get_user(user):
-    endpoint = '/api/leaderboard'
-    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'search':user}
-    async with ClientSession() as session:
-        async with session.get(base_url+endpoint, params=parameters) as response:
-            response = await response.read()
-            pat = pyjq.compile(f'.leaderboard | map({{name, rating, profile_id}})[] | select(.name=="{user}")')
-            user_data = pat.all(json.loads(response))
-            return user_data
-
-
-async def get_user_by_id(profile_id):
-    endpoint = '/api/leaderboard'
-    parameters = {'game':'aoe2de', 'leaderboard_id':'4', 'count':'100', 'profile_id':profile_id}
-    async with ClientSession() as session:
-        async with session.get(base_url+endpoint, params=parameters) as response:
-            response = await response.read()
-            search_data = json.loads(response)
-            return search_data
-
-
-async def get_last_match_for_player(profile_id):
-    endpoint = '/api/player/lastmatch'
-    parameters = {'game':'aoe2de', 'profile_id':profile_id}
-    async with ClientSession() as session:
-        async with session.get(base_url+endpoint, params=parameters) as response:
-            response = await response.read()
-            match_data = json.loads(response)
-            match_id = match_data['last_match']['match_id']
-            return match_id
-
-
-async def get_match_data(match_id):
-    endpoint = '/api/match'
-    parameters = {'game':'aoe2de', 'match_id':match_id}
-    async with ClientSession() as session:
-        async with session.get(base_url+endpoint, params=parameters) as response:
-            response = await response.read()
-            match_data = json.loads(response)
-            return match_data
-
 
 def is_smurf(wins, losses, games):
     few_games = 1 if games < 15 else 0
@@ -157,7 +86,8 @@ async def main():
         else:
             user_profile_id = user_data[0]
         ref_player = await Player.create(user_profile_id)
-        match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
+        #match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
+        match_id = (await asyncio.gather(asyncio.ensure_future(search.last_match_id(ref_player.profile_id))))[0]
 
     options = ['Search for new match', 'Look latest match']
     print("Select what match to compare")
@@ -168,13 +98,14 @@ async def main():
         print(f'Waiting new match for {user}#{ref_player.profile_id}: ELO#{ref_player.team_rating}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
-            latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
+            #latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
+            latest_match_id = (await asyncio.gather(asyncio.ensure_future(search.last_match_id(ref_player.profile_id))))[0]
             match_found = (latest_match_id == match_id) if match_query else (latest_match_id != match_id) 
             if match_found:
                 print(f'Match found! <{latest_match_id} {match_id}>')
                 break
             
-        match_data = (await asyncio.gather(asyncio.ensure_future(get_match_data(latest_match_id))))[0]
+        match_data = (await asyncio.gather(asyncio.ensure_future(search.match(latest_match_id))))[0]
 
         # Get opposition team
         # jq explained:
