@@ -4,13 +4,16 @@ import sys
 import json
 import pprint
 import pyjq
-
 import prettytable
-from prettytable import PrettyTable
 
+from prettytable import PrettyTable
 from aiohttp import ClientSession
 from types import SimpleNamespace
 from simple_term_menu import TerminalMenu
+
+import search
+from player import Player
+
 
 WAIT_BETWEEN_MATCH_LOOKUPS = 1
 
@@ -142,21 +145,19 @@ async def main():
 
     with Spinner():
         print(f'Searching for {user}')
-        user_data = (await asyncio.gather(asyncio.ensure_future(get_user(user))))[0]
-        if not user_data:
+        profiles = list(await search.profile_id(user))
+        if not profiles:
             print('User not found')
             return
-        if len(user_data) > 1:
+        if len(profiles) > 1:
             print(f'Multiple {user} found select one')
-            profile_ids = [str(sub['profile_id']) for sub in user_data]
-            elos = [sub['rating'] for sub in user_data]
-            user_selection = TerminalMenu(profile_ids)
+            user_selection = TerminalMenu(profiles)
             user_index = user_selection.show()
-            user_profile_id = profile_ids[user_index]
-            user_elo = elos[user_index]
+            user_profile_id = profiles[user_index]
         else:
-            user_profile_id = user_data[0]['profile_id']
-            user_elo = user_data[0]['rating']
+            user_profile_id = user_data[0]
+        ref_player = await Player.create(user_profile_id)
+        user_elo = ref_player.team_rating
         match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(user_profile_id))))[0]
 
     options = ['Search for new match', 'Look latest match']
@@ -189,16 +190,15 @@ async def main():
 
         tasks = []
         for player in opposition_team:
-            tasks.append(asyncio.create_task(get_user_by_id(player['profile_id'])))
+            tasks.append(asyncio.create_task(Player.create(player['profile_id'])))
         results = await asyncio.gather(*tasks)
 
         opposition_team_table = PrettyTable()
         opposition_team_table.field_names = ['Username', 'ELO', 'Wins', 'Loses', 'Games', 'Smurf']
         # print user info
-        for task in results:
-            data=task['leaderboard'][0]
-            smurfcode = is_smurf(data['wins'], data['losses'], data['games'])
-            colored_data = color_it([data['name'], data['previous_rating'], data['wins'], data['losses'], data['games'], get_smurfname(smurfcode)], smurfcode, user_elo)
+        for player in results:
+            smurfcode = is_smurf(player.team_wins, player.team_losses, player.team_games)
+            colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, get_smurfname(smurfcode)], smurfcode, user_elo)
             opposition_team_table.add_row(colored_data)
         print(opposition_team_table)
 
