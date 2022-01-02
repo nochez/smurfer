@@ -59,7 +59,7 @@ def color_it(data, smurfcode, ref_elo):
             smurfname_color+data[5]+N]
 
 async def main():
-    print_app_title('0.3')
+    print_app_title('0.4')
     options = ['Search Ponyo', 'Select by username']
     input_text = ['Ponyo', 'Enter username: ']
     terminal_menu = TerminalMenu(options)
