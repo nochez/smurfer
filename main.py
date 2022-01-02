@@ -27,9 +27,11 @@ def print_app_title(version=0):
 
 def is_smurf(wins, losses, games):
     few_games = 1 if games < 15 else 0
-    mostly_wins = 2 if (wins / (wins + losses)) > 0.55 else 0
+    if games > 0:
+        mostly_wins = 2 if (wins / (wins + losses)) > 0.55 else 0
+    else:
+        mostly_wins = 2
     return few_games + mostly_wins
-
 
 def get_smurfname(smurfcode):
     names = ['normal', 'new account', 'Pitufina', 'PAPA PITUFO']
@@ -70,8 +72,6 @@ async def main():
     else:
         user = input_text[menu_entry_index]
 
-    tasks = []
-
     with Spinner():
         print(f'Searching for {user}')
         profiles = list(await search.profile_id(user))
@@ -84,21 +84,18 @@ async def main():
             user_index = user_selection.show()
             user_profile_id = profiles[user_index]
         else:
-            user_profile_id = user_data[0]
+            user_profile_id = profiles[0]
         ref_player = await Player.create(user_profile_id)
-        #match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
         match_id = (await asyncio.gather(asyncio.ensure_future(search.last_match_id(ref_player.profile_id))))[0]
 
     options = ['Search for new match', 'Look latest match']
     print("Select what match to compare")
     match_query = TerminalMenu(['New match', 'Latest match']).show()
 
-
     with Spinner():
-        print(f'Waiting new match for {user}#{ref_player.profile_id}: ELO#{ref_player.team_rating}')
+        print(f'Waiting match for {user}#{ref_player.profile_id}: ELO#{ref_player.team_rating}')
         while True:
             await asyncio.sleep(WAIT_BETWEEN_MATCH_LOOKUPS)
-            #latest_match_id = (await asyncio.gather(asyncio.ensure_future(get_last_match_for_player(ref_player.profile_id))))[0]
             latest_match_id = (await asyncio.gather(asyncio.ensure_future(search.last_match_id(ref_player.profile_id))))[0]
             match_found = (latest_match_id == match_id) if match_query else (latest_match_id != match_id) 
             if match_found:

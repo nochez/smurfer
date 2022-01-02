@@ -23,7 +23,7 @@ class Player(object):
             single_query = pyjq.compile(single_jq)
             single_player_data = (single_query.all(single_player_data))[0]
         else:
-            single_player_data = {'single_rating':0, 'single_wins':0, 'single_losses':0,'single_games':0}
+            single_player_data = {'name':'none', 'country':'none', 'clan':'none','single_rating':0, 'single_wins':0, 'single_losses':0,'single_games':0}
         # get team player data
         parameters_team = {'game': 'aoe2de', 'count':'1', 'profile_id': profile_id, 'leaderboard_id': '4'}
         team_player_data = await call_aoe2net(endpoint, parameters_team)
