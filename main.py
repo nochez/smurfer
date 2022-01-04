@@ -79,16 +79,6 @@ async def main():
 
             print_team(team_number, results)
                 
-#            team_table = PrettyTable()
-#            team_table.title = 'Team #' + str(team_number)
-#            team_table.field_names = ['Username', 'ELO', 'Wins', 'Loses', 'Games', 'Smurf']
-#            # print user info
-#            for player in results:
-#                smurfcode = player.is_team_smurf()
-#                colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, Player.smurfname(smurfcode)], smurfcode, ref_player.team_rating)
-#                team_table.add_row(colored_data)
-#            print(team_table)
-    
 
 def color_it(data, smurfcode, ref_elo):
     R = "\033[0;31;40m" #RED
