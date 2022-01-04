@@ -9,8 +9,9 @@ class Player(object):
     # Use factory pattern to create players due to asyncio use
     @classmethod
     async def create(cls, profile_id):
+        user_data = {'profile_id': profile_id}
         endpoint = '/api/leaderboard'
-        # get single player data
+        # single player data
         parameters_single = {'game': 'aoe2de', 'count':'1', 'profile_id': profile_id, 'leaderboard_id': '3'}
         single_player_data = await call_aoe2net(endpoint, parameters_single)
         if single_player_data['count'] == 1:
@@ -21,10 +22,8 @@ class Player(object):
                         '"single_losses": .losses, ' \
                         '"single_games":.games}'
             single_query = pyjq.compile(single_jq)
-            single_player_data = (single_query.all(single_player_data))[0]
-        else:
-            single_player_data = {'name':'none', 'country':'none', 'clan':'none','single_rating':0, 'single_wins':0, 'single_losses':0,'single_games':0}
-        # get team player data
+            user_data = user_data | (single_query.all(single_player_data))[0]
+        # team player data
         parameters_team = {'game': 'aoe2de', 'count':'1', 'profile_id': profile_id, 'leaderboard_id': '4'}
         team_player_data = await call_aoe2net(endpoint, parameters_team)
         if team_player_data['count'] == 1:
@@ -35,23 +34,36 @@ class Player(object):
                         '"team_losses": .losses, ' \
                         '"team_games":.games}'
             team_query = pyjq.compile(team_jq)
-            team_player_data = (team_query.all(team_player_data))[0]
-        else:
-            team_player_data = {'team_rating':0, 'team_wins':0, 'team_losses':0,'team_games':0}
-        # parse single and team data into single data object
-        user_data = single_player_data | team_player_data | {'profile_id': profile_id}
+            user_data = user_data | (team_query.all(team_player_data))[0]
         # player data into an instance
         self = Player()
         self.load(user_data)
         return self
 
     def load(self, data):
+        # default values
+        self.name = self.country = self.clan = 'none'
+        self.single_rating = self.single_wins = self.single_losses = self.single_games = 0
+        self.team_rating = self.team_wins = self.team_losses = self.team_games = 0
+        # values we get in a dict
         for key in data:
             setattr(self, key, data[key])
 
     def show(self):
         attributes = vars(self)
         print(', '.join("%s: %s" % item for item in attributes.items()))
+
+    def is_team_smurf(self):
+        few_games = 1 if self.team_games < 15 else 0
+        if self.team_games > 0:
+            mostly_wins = 2 if (self.team_wins / (self.team_wins + self.team_losses)) > 0.55 else 0
+        else: mostly_wins = 2
+        return few_games + mostly_wins
+
+    @classmethod
+    def smurfname(cls, code):
+        names = ['normal', 'new account', 'Pitufina', 'PAPA PITUFO']
+        return names[code]
 
 
 async def main():

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from simple_term_menu import TerminalMenu
 
 import search
+from match import Match
 from player import Player
 from spinner import Spinner
 
@@ -25,40 +26,6 @@ def print_app_title(version=0):
     print(f'version {version}')
     print('\n')
 
-def is_smurf(wins, losses, games):
-    few_games = 1 if games < 15 else 0
-    if games > 0:
-        mostly_wins = 2 if (wins / (wins + losses)) > 0.55 else 0
-    else:
-        mostly_wins = 2
-    return few_games + mostly_wins
-
-def get_smurfname(smurfcode):
-    names = ['normal', 'new account', 'Pitufina', 'PAPA PITUFO']
-    return names[smurfcode]
-
-def color_it(data, smurfcode, ref_elo):
-    R = "\033[0;31;40m" #RED
-    G = "\033[0;32;40m" # GREEN
-    Y = "\033[0;33;40m" # Yellow
-    B = "\033[0;34;40m" # Blue
-    N = "\033[0m" # Reset
-
-    games_color = [N, Y][smurfcode & 1]
-    ratio_color = [N, N, Y, Y][smurfcode & 2]
-    smurfname_color = [N, Y, Y, R][smurfcode]
-    
-    elo_range_dif = [abs((data[1] - ref_elo) - x) for x in [-50, 0, 40, 100]]
-    min_index = elo_range_dif.index(min(elo_range_dif))
-    elo_color = [G, N, Y, R][min_index]
-
-
-    return [smurfname_color+data[0]+N,
-            elo_color+str(data[1])+N,
-            ratio_color+str(data[2])+N,
-            ratio_color+str(data[3])+N,
-            games_color+str(data[4])+N,
-            smurfname_color+data[5]+N]
 
 async def main():
     print_app_title('0.4')
@@ -101,33 +68,66 @@ async def main():
             if match_found:
                 print(f'Match found! <{latest_match_id} {match_id}>')
                 break
-            
-        match_data = (await asyncio.gather(asyncio.ensure_future(search.match(latest_match_id))))[0]
 
-        # Get opposition team
-        # jq explained:
-        # from players we sort by team value,
-        # then filter only name, id, and team.
-        # Finally select the opposite (this is the not part) team entry if any of the members matches the profile id of the user
-        query = f'.players | group_by(.team)[] | map({{name, profile_id, team}}) | select( any(.profile_id=={ref_player.profile_id}) | not )'
-        pat = pyjq.compile(query)
-        opposition_team = (pat.all(match_data))[0]
-        #pprint.pprint(match_data)
-        #pprint.pprint(opposition_team)
+        # process match
+        match = await Match.create(latest_match_id)
+        for team_number in [0, 1]:
+            tasks = []
+            for player in match.teams[team_number]:
+                tasks.append(asyncio.create_task(Player.create(player['profile_id'])))
+            results = await asyncio.gather(*tasks)
 
-        tasks = []
-        for player in opposition_team:
-            tasks.append(asyncio.create_task(Player.create(player['profile_id'])))
-        results = await asyncio.gather(*tasks)
+            print_team(team_number, results)
+                
+#            team_table = PrettyTable()
+#            team_table.title = 'Team #' + str(team_number)
+#            team_table.field_names = ['Username', 'ELO', 'Wins', 'Loses', 'Games', 'Smurf']
+#            # print user info
+#            for player in results:
+#                smurfcode = player.is_team_smurf()
+#                colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, Player.smurfname(smurfcode)], smurfcode, ref_player.team_rating)
+#                team_table.add_row(colored_data)
+#            print(team_table)
+    
 
-        opposition_team_table = PrettyTable()
-        opposition_team_table.field_names = ['Username', 'ELO', 'Wins', 'Loses', 'Games', 'Smurf']
-        # print user info
-        for player in results:
-            smurfcode = is_smurf(player.team_wins, player.team_losses, player.team_games)
-            colored_data = color_it([player.name, player.team_rating, player.team_wins, player.team_losses, player.team_games, get_smurfname(smurfcode)], smurfcode, ref_player.team_rating)
-            opposition_team_table.add_row(colored_data)
-        print(opposition_team_table)
+def color_it(data, smurfcode, ref_elo):
+    R = "\033[0;31;40m" #RED
+    G = "\033[0;32;40m" # GREEN
+    Y = "\033[0;33;40m" # Yellow
+    B = "\033[0;34;40m" # Blue
+    N = "\033[0m" # Reset
+
+    games_color = [N, Y][smurfcode & 1]
+    ratio_color = [N, N, Y, Y][smurfcode & 2]
+    smurfname_color = [N, Y, Y, R][smurfcode]
+    
+    elo_range_dif = [abs((data[1] - ref_elo) - x) for x in [-50, 0, 40, 100]]
+    min_index = elo_range_dif.index(min(elo_range_dif))
+    elo_color = [G, N, Y, R][min_index]
+
+
+    return [smurfname_color+data[0]+N,
+            elo_color+str(data[1])+N,
+            ratio_color+str(data[2])+N,
+            ratio_color+str(data[3])+N,
+            games_color+str(data[4])+N,
+            smurfname_color+data[5]+N]
+
+
+def print_team(team_number, players):
+    team_table = PrettyTable()
+    team_table.title = 'Team #' + str(team_number)
+    team_table.field_names = ['Name', 'SE', 'SR', 'SG', 'TE', 'TR', 'TG', 'SMURF']
+    for player in players:
+        team_table.add_row([player.name,
+            player.single_rating,
+            str(player.single_wins)+'/'+str(player.single_losses),
+            player.single_games,
+            player.team_rating,
+            str(player.team_wins)+'/'+str(player.team_losses),
+            player.team_games,
+            Player.smurfname(player.is_team_smurf())])
+    print(team_table)
 
 
 if __name__ == '__main__':

@@ -14,3 +14,4 @@ COPY . .
 CMD [ "python", "./main.py"  ]
 #CMD [ "python", "./player.py"  ]
 #CMD [ "python", "./search.py"  ]
+#CMD [ "python", "./match.py"  ]
