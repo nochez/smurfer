@@ -28,9 +28,9 @@ def print_app_title(version=0):
 
 
 async def main():
-    print_app_title('0.4')
-    options = ['Search Ponyo', 'Select by username']
-    input_text = ['Ponyo', 'Enter username: ']
+    print_app_title('0.5')
+    options = ['Search Camacho', 'Select by username']
+    input_text = ['Camacho', 'Enter username: ']
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     
@@ -71,6 +71,7 @@ async def main():
 
         # process match
         match = await Match.create(latest_match_id)
+        # for every team get player data then print the info
         for team_number in [0, 1]:
             tasks = []
             for player in match.teams[team_number]:
